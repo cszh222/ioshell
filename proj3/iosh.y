@@ -54,8 +54,8 @@ builtin: 	SETPROMPT args {$$ = setPromptCmd($2);}
 		| CHDIR args {$$ = chdirCmd($2);}
 		| QUIT {$$ = quitCmd();}
 		;
-args:		WORD args {$$ = addArg($1, $2);}
-		| STRING args {$$ = addArg($1, $2);}
+args:		args WORD {$$ = addArg($2, $1);}
+		| args STRING {$$ = addArg($2, $1);}
 		| {$$ = newCommand();}
 		;
 %%
