@@ -10,6 +10,8 @@
 #include "globals.h"
 #include "y.tab.h"
 
+extern int errno;
+
 command* addArg(char* arg, command* curCmd);
 command* newCommand(void);
 command* setPromptCmd(command* curCmd);
@@ -43,8 +45,8 @@ void yyerror(char* s);
 %type <command_val> args
 
 %%
-shell:	        shell builtin NEWLINE {run($2); printf("%s", prompt);}
-		| shell COMMENT {printf("%s", prompt);}
+shell:	        shell builtin NEWLINE {run($2); printf("%s%% ", prompt);}
+		| shell COMMENT {printf("%s%% ", prompt);}
 		|
 		;
 builtin: 	SETPROMPT args {$$ = setPromptCmd($2);}
@@ -62,13 +64,18 @@ void run(command* curCmd){
 		case SETPROMPTCMD:
 			free(prompt);
 			prompt = strdup(curCmd->argStart->arg);
-			strcat(prompt, " ");
 			break;
 		case QUITCMD:
 			printf("quitting shell\n");
 			exit(0);
 			break;
 		case CHDIRCMD:
+			{
+			int chdirErr = chdir(curCmd->argStart->arg);	
+			if(chdirErr == -1){
+				printf("An error occured with changing directory");			
+			}
+			}
 			break;
 		case SETDEBUGCMD:
 			if(strcmp("on", curCmd->argStart->arg)==0){
@@ -149,8 +156,8 @@ command* quitCmd(){
 }
 
 int main(void){
-	prompt = strdup("iosh% ");
-	printf("%s", prompt);	
+	prompt = strdup("iosh");
+	printf("%s%% ", prompt);	
 	yyparse();
 	free(prompt);
 	return 0;
@@ -159,7 +166,7 @@ int main(void){
 void yyerror(char* s)
 {
         printf("%s\n",s);
-        printf("%s",prompt);
+        printf("%s%% ",prompt);
         yyparse();
         return;
 }

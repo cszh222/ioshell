@@ -79,6 +79,8 @@
 #include "globals.h"
 #include "y.tab.h"
 
+extern int errno;
+
 command* addArg(char* arg, command* curCmd);
 command* newCommand(void);
 command* setPromptCmd(command* curCmd);
@@ -92,7 +94,7 @@ void yyerror(char* s);
 
 
 /* Line 268 of yacc.c  */
-#line 96 "y.tab.c"
+#line 98 "y.tab.c"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -147,7 +149,7 @@ typedef union YYSTYPE
 {
 
 /* Line 293 of yacc.c  */
-#line 25 "iosh.y"
+#line 27 "iosh.y"
 
 	char* string_val;
 	command* command_val;
@@ -155,7 +157,7 @@ typedef union YYSTYPE
 
 
 /* Line 293 of yacc.c  */
-#line 159 "y.tab.c"
+#line 161 "y.tab.c"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -167,7 +169,7 @@ typedef union YYSTYPE
 
 
 /* Line 343 of yacc.c  */
-#line 171 "y.tab.c"
+#line 173 "y.tab.c"
 
 #ifdef short
 # undef short
@@ -456,8 +458,8 @@ static const yytype_int8 yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,    46,    46,    47,    48,    50,    51,    52,    53,    55,
-      56,    57
+       0,    48,    48,    49,    50,    52,    53,    54,    55,    57,
+      58,    59
 };
 #endif
 
@@ -1390,70 +1392,70 @@ yyreduce:
         case 2:
 
 /* Line 1806 of yacc.c  */
-#line 46 "iosh.y"
-    {run((yyvsp[(2) - (3)].command_val)); printf("%s", prompt);}
+#line 48 "iosh.y"
+    {run((yyvsp[(2) - (3)].command_val)); printf("%s%% ", prompt);}
     break;
 
   case 3:
 
 /* Line 1806 of yacc.c  */
-#line 47 "iosh.y"
-    {printf("%s", prompt);}
+#line 49 "iosh.y"
+    {printf("%s%% ", prompt);}
     break;
 
   case 5:
 
 /* Line 1806 of yacc.c  */
-#line 50 "iosh.y"
+#line 52 "iosh.y"
     {(yyval.command_val) = setPromptCmd((yyvsp[(2) - (2)].command_val));}
     break;
 
   case 6:
 
 /* Line 1806 of yacc.c  */
-#line 51 "iosh.y"
+#line 53 "iosh.y"
     {(yyval.command_val) = setDebugCmd((yyvsp[(2) - (2)].command_val));}
     break;
 
   case 7:
 
 /* Line 1806 of yacc.c  */
-#line 52 "iosh.y"
+#line 54 "iosh.y"
     {(yyval.command_val) = chdirCmd((yyvsp[(2) - (2)].command_val));}
     break;
 
   case 8:
 
 /* Line 1806 of yacc.c  */
-#line 53 "iosh.y"
+#line 55 "iosh.y"
     {(yyval.command_val) = quitCmd();}
     break;
 
   case 9:
 
 /* Line 1806 of yacc.c  */
-#line 55 "iosh.y"
+#line 57 "iosh.y"
     {(yyval.command_val) = addArg((yyvsp[(1) - (2)].string_val), (yyvsp[(2) - (2)].command_val));}
     break;
 
   case 10:
 
 /* Line 1806 of yacc.c  */
-#line 56 "iosh.y"
+#line 58 "iosh.y"
     {(yyval.command_val) = addArg((yyvsp[(1) - (2)].string_val), (yyvsp[(2) - (2)].command_val));}
     break;
 
   case 11:
 
 /* Line 1806 of yacc.c  */
-#line 57 "iosh.y"
+#line 59 "iosh.y"
     {(yyval.command_val) = newCommand();}
     break;
 
 
 
 /* Line 1806 of yacc.c  */
-#line 1457 "y.tab.c"
+#line 1459 "y.tab.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -1684,27 +1686,34 @@ yyreturn:
 
 
 /* Line 2067 of yacc.c  */
-#line 59 "iosh.y"
+#line 61 "iosh.y"
 
 void run(command* curCmd){
 	switch(curCmd -> commandType){
 		case SETPROMPTCMD:
 			free(prompt);
 			prompt = strdup(curCmd->argStart->arg);
-			strcat(prompt, " ");
 			break;
 		case QUITCMD:
-			printf("quiting");
+			printf("quitting shell\n");
 			exit(0);
 			break;
 		case CHDIRCMD:
+			{
+			int chdirErr = chdir(curCmd->argStart->arg);	
+			if(chdirErr == -1){
+				printf("An error occured with changing directory");			
+			}
+			}
 			break;
 		case SETDEBUGCMD:
 			if(strcmp("on", curCmd->argStart->arg)==0){
 				debug_flag = true;
+				printf("debug turned on\n");
 			}
 			else{
 				debug_flag = false;
+				printf("debug turned off\n");
 			} 
 			break;
 		case EXECPROGCMD:
@@ -1776,8 +1785,8 @@ command* quitCmd(){
 }
 
 int main(void){
-	prompt = strdup("iosh% ");
-	printf("%s", prompt);	
+	prompt = strdup("iosh");
+	printf("%s%% ", prompt);	
 	yyparse();
 	free(prompt);
 	return 0;
@@ -1786,7 +1795,7 @@ int main(void){
 void yyerror(char* s)
 {
         printf("%s\n",s);
-        printf("%s",prompt);
+        printf("%s%% ",prompt);
         yyparse();
         return;
 }
