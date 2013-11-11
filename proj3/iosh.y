@@ -89,15 +89,29 @@ args:		args WORD {$$ = addArg($2, $1);}
 void run(command* curCmd){
 	switch(curCmd -> commandType){
 		case SETPROMPTCMD:
+			if(debug_flag){
+				printf("Token Type = word\t  Token = setprompt\t Usage = setprompt\n");
+				printf("Token Type = string\t  Token = %s\t Usage = string\n", curCmd->argStart->arg);
+				printf("Token Type = end-of-line  Token = EOL\t\t Usage = EOL\n");
+			}
 			free(prompt);
 			prompt = strdup(curCmd->argStart->arg);
 			break;
 		case QUITCMD:
+			if(debug_flag){
+				printf("Token Type = word\t  Token = quit\t Usage = quit\n");
+				printf("Token Type = end-of-line  Token = EOL\t Usage = EOL\n");
+			}
 			printf("quitting shell\n");
 			exit(0);
 			break;
-		case CHDIRCMD:
-			{
+		case CHDIRCMD: {
+			if(debug_flag){
+				printf("Token Type = word\t  Token = chdir\t Usage = chdir\n");
+				printf("Token Type = word\t  Token = %s\t Usage = word\n", curCmd->argStart->arg);
+				printf("Token Type = end-of-line  Token = EOL\t Usage = EOL\n");  
+
+			}
 			int chdirErr = chdir(curCmd->argStart->arg);	
 			if(chdirErr == -1){
 				chdirError(curCmd->argStart->arg);			
@@ -112,9 +126,12 @@ void run(command* curCmd){
 				debug_flag = true;
 				printf("debug turned on\n");
 			}
-			else{
+			else if(strcmp("off", curCmd->argStart->arg)==0){
 				debug_flag = false;
 				printf("debug turned off\n");
+			}
+			else{
+				printf("Debug mode must be set to either \"on\" or \"off\". %s is not valid.\n", curCmd->argStart->arg);
 			} 
 			break;
 		case EXECPROGCMD:
@@ -135,15 +152,19 @@ void runProg(command* curCmd){
 		argPtr2 = argPtr2->next;
 	}*/
 	/*build argument list */
-	char** argsToPass = (char **)malloc(sizeof(char *)*(curCmd->argc+1));
+	char** argsToPass = (char **)malloc(sizeof(char *)*(curCmd->argc+2));
+	/*set first argument to the program path/name*/
 	argsToPass[0] = strdup(curCmd->command);
 	int i;
+	/*Add arguments for the program*/
 	arglist* argPtr = curCmd->argStart;
 	for(i=1; i<= curCmd->argc; i++){
 		argsToPass[i] = strdup(argPtr->arg);
 		argPtr = argPtr->next;
 		printf("arg %d %s\n", i, argsToPass[i]);
 	}
+	/*Terminate argument array with NULL*/
+	argsToPass[curCmd->argc+1] = NULL;
 
 	/* Fork and Exec below here */
 	int pid;
