@@ -1,0 +1,13 @@
+globals.h
+iosh
+iosh.l
+iosh.tab.c
+iosh.y
+lex.yy.c
+lex.yy.o
+makefile
+testDir
+testOutFile
+y.tab.c
+y.tab.h
+y.tab.o
