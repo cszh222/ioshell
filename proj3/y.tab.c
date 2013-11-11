@@ -76,6 +76,8 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <errno.h>
+#include <fcntl.h>
 #include "globals.h"
 #include "y.tab.h"
 
@@ -87,14 +89,20 @@ command* setPromptCmd(command* curCmd);
 command* setDebugCmd(command* curCmd);
 command* quitCmd();
 command* chdirCmd(command* curCmd);
+command* setIOFiles(char* inFile, command* curCmd, char* outFile);
+command* setProg(char* progName, command* curCmd);
+
 void run(command* curCmd);
+void runProg(command* curCmd);
 
 int yylex(void);
 void yyerror(char* s);
+void chdirError(char* directory);
+void execError(char* commandName);
 
 
 /* Line 268 of yacc.c  */
-#line 98 "y.tab.c"
+#line 106 "y.tab.c"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -149,7 +157,7 @@ typedef union YYSTYPE
 {
 
 /* Line 293 of yacc.c  */
-#line 27 "iosh.y"
+#line 35 "iosh.y"
 
 	char* string_val;
 	command* command_val;
@@ -157,7 +165,7 @@ typedef union YYSTYPE
 
 
 /* Line 293 of yacc.c  */
-#line 161 "y.tab.c"
+#line 169 "y.tab.c"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -169,7 +177,7 @@ typedef union YYSTYPE
 
 
 /* Line 343 of yacc.c  */
-#line 173 "y.tab.c"
+#line 181 "y.tab.c"
 
 #ifdef short
 # undef short
@@ -388,16 +396,16 @@ union yyalloc
 /* YYFINAL -- State number of the termination state.  */
 #define YYFINAL  2
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   11
+#define YYLAST   20
 
 /* YYNTOKENS -- Number of terminals.  */
 #define YYNTOKENS  13
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  4
+#define YYNNTS  8
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  11
+#define YYNRULES  18
 /* YYNRULES -- Number of states.  */
-#define YYNSTATES  15
+#define YYNSTATES  28
 
 /* YYTRANSLATE(YYLEX) -- Bison symbol number corresponding to YYLEX.  */
 #define YYUNDEFTOK  2
@@ -443,23 +451,25 @@ static const yytype_uint8 yytranslate[] =
    YYRHS.  */
 static const yytype_uint8 yyprhs[] =
 {
-       0,     0,     3,     7,    10,    11,    14,    17,    20,    22,
-      25,    28
+       0,     0,     3,     7,    10,    14,    15,    20,    23,    25,
+      28,    29,    32,    35,    38,    41,    43,    46,    49
 };
 
 /* YYRHS -- A `-1'-separated list of the rules' RHS.  */
 static const yytype_int8 yyrhs[] =
 {
-      14,     0,    -1,    14,    15,     5,    -1,    14,     6,    -1,
-      -1,     7,    16,    -1,     8,    16,    -1,     9,    16,    -1,
-      10,    -1,    16,     3,    -1,    16,     4,    -1,    -1
+      14,     0,    -1,    14,    19,     5,    -1,    14,     6,    -1,
+      14,    15,     5,    -1,    -1,    16,    11,    18,    17,    -1,
+      18,    17,    -1,     3,    -1,    12,     3,    -1,    -1,     3,
+      20,    -1,     7,    20,    -1,     8,    20,    -1,     9,    20,
+      -1,    10,    -1,    20,     3,    -1,    20,     4,    -1,    -1
 };
 
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,    48,    48,    49,    50,    52,    53,    54,    55,    57,
-      58,    59
+       0,    60,    60,    61,    62,    63,    66,    67,    70,    73,
+      74,    77,    79,    80,    81,    82,    84,    85,    86
 };
 #endif
 
@@ -470,7 +480,7 @@ static const char *const yytname[] =
 {
   "$end", "error", "$undefined", "WORD", "STRING", "NEWLINE", "COMMENT",
   "SETPROMPT", "DEBUG", "CHDIR", "QUIT", "'<'", "'>'", "$accept", "shell",
-  "builtin", "args", 0
+  "command", "infile", "outfile", "prog", "builtin", "args", 0
 };
 #endif
 
@@ -487,15 +497,15 @@ static const yytype_uint16 yytoknum[] =
 /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const yytype_uint8 yyr1[] =
 {
-       0,    13,    14,    14,    14,    15,    15,    15,    15,    16,
-      16,    16
+       0,    13,    14,    14,    14,    14,    15,    15,    16,    17,
+      17,    18,    19,    19,    19,    19,    20,    20,    20
 };
 
 /* YYR2[YYN] -- Number of symbols composing right hand side of rule YYN.  */
 static const yytype_uint8 yyr2[] =
 {
-       0,     2,     3,     2,     0,     2,     2,     2,     1,     2,
-       2,     0
+       0,     2,     3,     2,     3,     0,     4,     2,     1,     2,
+       0,     2,     2,     2,     2,     1,     2,     2,     0
 };
 
 /* YYDEFACT[STATE-NAME] -- Default reduction number in state STATE-NUM.
@@ -503,59 +513,64 @@ static const yytype_uint8 yyr2[] =
    means the default is an error.  */
 static const yytype_uint8 yydefact[] =
 {
-       4,     0,     1,     3,    11,    11,    11,     8,     0,     5,
-       6,     7,     2,     9,    10
+       5,     0,     1,    18,     3,    18,    18,    18,    15,     0,
+       0,    10,     0,    11,    12,    13,    14,     4,     0,     0,
+       7,     2,    16,    17,    18,    10,     9,     6
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
 static const yytype_int8 yydefgoto[] =
 {
-      -1,     1,     8,     9
+      -1,     1,     9,    10,    20,    11,    12,    13
 };
 
 /* YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
    STATE-NUM.  */
-#define YYPACT_NINF -3
+#define YYPACT_NINF -8
 static const yytype_int8 yypact[] =
 {
-      -3,     0,    -3,    -3,    -3,    -3,    -3,    -3,     6,    -2,
-      -2,    -2,    -3,    -3,    -3
+      -8,     0,    -8,    -7,    -8,    -8,    -8,    -8,    -8,     9,
+      -6,     3,    11,    -2,    -2,    -2,    -2,    -8,    14,    15,
+      -8,    -8,    -8,    -8,    -8,     3,    -8,    -8
 };
 
 /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int8 yypgoto[] =
 {
-      -3,    -3,    -3,    -1
+      -8,    -8,    -8,    -8,    -5,     1,    -8,     6
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]].  What to do in state STATE-NUM.  If
    positive, shift that token.  If negative, reduce the rule which
    number is the opposite.  If YYTABLE_NINF, syntax error.  */
-#define YYTABLE_NINF -1
-static const yytype_uint8 yytable[] =
+#define YYTABLE_NINF -9
+static const yytype_int8 yytable[] =
 {
-       2,    13,    14,     0,    10,    11,     3,     4,     5,     6,
-       7,    12
+       2,    22,    23,     3,    -8,    18,     4,     5,     6,     7,
+       8,    14,    15,    16,    17,    19,    21,    24,    26,    25,
+      27
 };
 
 #define yypact_value_is_default(yystate) \
-  ((yystate) == (-3))
+  ((yystate) == (-8))
 
 #define yytable_value_is_error(yytable_value) \
   YYID (0)
 
-static const yytype_int8 yycheck[] =
+static const yytype_uint8 yycheck[] =
 {
-       0,     3,     4,    -1,     5,     6,     6,     7,     8,     9,
-      10,     5
+       0,     3,     4,     3,    11,    11,     6,     7,     8,     9,
+      10,     5,     6,     7,     5,    12,     5,     3,     3,    18,
+      25
 };
 
 /* YYSTOS[STATE-NUM] -- The (internal number of the) accessing
    symbol of state STATE-NUM.  */
 static const yytype_uint8 yystos[] =
 {
-       0,    14,     0,     6,     7,     8,     9,    10,    15,    16,
-      16,    16,     5,     3,     4
+       0,    14,     0,     3,     6,     7,     8,     9,    10,    15,
+      16,    18,    19,    20,    20,    20,    20,     5,    11,    12,
+      17,     5,     3,     4,     3,    18,     3,    17
 };
 
 #define yyerrok		(yyerrstatus = 0)
@@ -1392,70 +1407,119 @@ yyreduce:
         case 2:
 
 /* Line 1806 of yacc.c  */
-#line 48 "iosh.y"
-    {run((yyvsp[(2) - (3)].command_val)); printf("%s%% ", prompt);}
+#line 60 "iosh.y"
+    {run((yyvsp[(2) - (3)].command_val));/*the command needs to be freed*/ printf("%s%s%% ",prompt,dir);}
     break;
 
   case 3:
 
 /* Line 1806 of yacc.c  */
-#line 49 "iosh.y"
-    {printf("%s%% ", prompt);}
+#line 61 "iosh.y"
+    {printf("%s%s%% ",prompt,dir);}
     break;
 
-  case 5:
+  case 4:
 
 /* Line 1806 of yacc.c  */
-#line 52 "iosh.y"
-    {(yyval.command_val) = setPromptCmd((yyvsp[(2) - (2)].command_val));}
+#line 62 "iosh.y"
+    {run((yyvsp[(2) - (3)].command_val)); printf("%s%s%% ",prompt,dir);}
     break;
 
   case 6:
 
 /* Line 1806 of yacc.c  */
-#line 53 "iosh.y"
-    {(yyval.command_val) = setDebugCmd((yyvsp[(2) - (2)].command_val));}
+#line 66 "iosh.y"
+    {(yyval.command_val) = setIOFiles((yyvsp[(1) - (4)].string_val), (yyvsp[(3) - (4)].command_val), (yyvsp[(4) - (4)].string_val));}
     break;
 
   case 7:
 
 /* Line 1806 of yacc.c  */
-#line 54 "iosh.y"
-    {(yyval.command_val) = chdirCmd((yyvsp[(2) - (2)].command_val));}
+#line 67 "iosh.y"
+    {(yyval.command_val) = setIOFiles("", (yyvsp[(1) - (2)].command_val), (yyvsp[(2) - (2)].string_val));}
     break;
 
   case 8:
 
 /* Line 1806 of yacc.c  */
-#line 55 "iosh.y"
-    {(yyval.command_val) = quitCmd();}
+#line 70 "iosh.y"
+    {(yyval.string_val) = (yyvsp[(1) - (1)].string_val);}
     break;
 
   case 9:
 
 /* Line 1806 of yacc.c  */
-#line 57 "iosh.y"
-    {(yyval.command_val) = addArg((yyvsp[(2) - (2)].string_val), (yyvsp[(1) - (2)].command_val));}
+#line 73 "iosh.y"
+    {(yyval.string_val) = (yyvsp[(2) - (2)].string_val);}
     break;
 
   case 10:
 
 /* Line 1806 of yacc.c  */
-#line 58 "iosh.y"
-    {(yyval.command_val) = addArg((yyvsp[(2) - (2)].string_val), (yyvsp[(1) - (2)].command_val));}
+#line 74 "iosh.y"
+    {(yyval.string_val) = "";}
     break;
 
   case 11:
 
 /* Line 1806 of yacc.c  */
-#line 59 "iosh.y"
+#line 77 "iosh.y"
+    {(yyval.command_val)= setProg((yyvsp[(1) - (2)].string_val), (yyvsp[(2) - (2)].command_val));}
+    break;
+
+  case 12:
+
+/* Line 1806 of yacc.c  */
+#line 79 "iosh.y"
+    {(yyval.command_val) = setPromptCmd((yyvsp[(2) - (2)].command_val));}
+    break;
+
+  case 13:
+
+/* Line 1806 of yacc.c  */
+#line 80 "iosh.y"
+    {(yyval.command_val) = setDebugCmd((yyvsp[(2) - (2)].command_val));}
+    break;
+
+  case 14:
+
+/* Line 1806 of yacc.c  */
+#line 81 "iosh.y"
+    {(yyval.command_val) = chdirCmd((yyvsp[(2) - (2)].command_val));}
+    break;
+
+  case 15:
+
+/* Line 1806 of yacc.c  */
+#line 82 "iosh.y"
+    {(yyval.command_val) = quitCmd();}
+    break;
+
+  case 16:
+
+/* Line 1806 of yacc.c  */
+#line 84 "iosh.y"
+    {(yyval.command_val) = addArg((yyvsp[(2) - (2)].string_val), (yyvsp[(1) - (2)].command_val));}
+    break;
+
+  case 17:
+
+/* Line 1806 of yacc.c  */
+#line 85 "iosh.y"
+    {(yyval.command_val) = addArg((yyvsp[(2) - (2)].string_val), (yyvsp[(1) - (2)].command_val));}
+    break;
+
+  case 18:
+
+/* Line 1806 of yacc.c  */
+#line 86 "iosh.y"
     {(yyval.command_val) = newCommand();}
     break;
 
 
 
 /* Line 1806 of yacc.c  */
-#line 1459 "y.tab.c"
+#line 1523 "y.tab.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -1686,23 +1750,40 @@ yyreturn:
 
 
 /* Line 2067 of yacc.c  */
-#line 61 "iosh.y"
+#line 88 "iosh.y"
 
 void run(command* curCmd){
 	switch(curCmd -> commandType){
 		case SETPROMPTCMD:
+			if(debug_flag){
+				printf("Token Type = word\t  Token = setprompt\t Usage = setprompt\n");
+				printf("Token Type = string\t  Token = %s\t Usage = string\n", curCmd->argStart->arg);
+				printf("Token Type = end-of-line  Token = EOL\t\t Usage = EOL\n");
+			}
 			free(prompt);
 			prompt = strdup(curCmd->argStart->arg);
 			break;
 		case QUITCMD:
+			if(debug_flag){
+				printf("Token Type = word\t  Token = quit\t Usage = quit\n");
+				printf("Token Type = end-of-line  Token = EOL\t Usage = EOL\n");
+			}
 			printf("quitting shell\n");
 			exit(0);
 			break;
-		case CHDIRCMD:
-			{
+		case CHDIRCMD: {
+			if(debug_flag){
+				printf("Token Type = word\t  Token = chdir\t Usage = chdir\n");
+				printf("Token Type = word\t  Token = %s\t Usage = word\n", curCmd->argStart->arg);
+				printf("Token Type = end-of-line  Token = EOL\t Usage = EOL\n");  
+
+			}
 			int chdirErr = chdir(curCmd->argStart->arg);	
 			if(chdirErr == -1){
-				printf("An error occured with changing directory");			
+				chdirError(curCmd->argStart->arg);			
+			}
+			else{
+				getcwd(dir, sizeof(dir));
 			}
 			}
 			break;
@@ -1711,13 +1792,86 @@ void run(command* curCmd){
 				debug_flag = true;
 				printf("debug turned on\n");
 			}
-			else{
+			else if(strcmp("off", curCmd->argStart->arg)==0){
 				debug_flag = false;
 				printf("debug turned off\n");
+			}
+			else{
+				printf("Debug mode must be set to either \"on\" or \"off\". %s is not valid.\n", curCmd->argStart->arg);
 			} 
 			break;
 		case EXECPROGCMD:
+			runProg(curCmd);
 			break;
+	}
+}
+
+void runProg(command* curCmd){
+	/*printf("Command: %s\n", curCmd->command);
+	if(curCmd->inputFrom != NULL)
+		printf("InFile: %s\n", curCmd->inputFrom);
+	if(curCmd->outputTo != NULL)
+		printf("OutFile: %s\n", curCmd->outputTo);
+	arglist* argPtr2 = curCmd->argStart;
+	while(argPtr2!= NULL){
+		printf("args: %s\n", argPtr2->arg);
+		argPtr2 = argPtr2->next;
+	}*/
+	/*build argument list */
+	char** argsToPass = (char **)malloc(sizeof(char *)*(curCmd->argc+2));
+	/*set first argument to the program path/name*/
+	argsToPass[0] = strdup(curCmd->command);
+	int i;
+	/*Add arguments for the program*/
+	arglist* argPtr = curCmd->argStart;
+	for(i=1; i<= curCmd->argc; i++){
+		argsToPass[i] = strdup(argPtr->arg);
+		argPtr = argPtr->next;
+		/*printf("arg %d %s\n", i, argsToPass[i]);*/
+	}
+	/*Terminate argument array with NULL*/
+	argsToPass[curCmd->argc+1] = NULL;
+
+	/* Fork and Exec below here */
+	int pid;
+	if((pid = fork()) != 0){
+		/*parent process*/
+		int status;
+		if(waitpid(pid, &status, 0) == -1)
+		   printf("Error waiting on child to exit\n");
+		/*status can be checked here to see what happened to child*/
+		/*argsToPass needs to be freed*/
+		for(i=0; i<=curCmd->argc; i++)
+			free(argsToPass[i]);
+		free(argsToPass);
+	}
+	else{
+		/*child process*/
+		/*dup any IO file redirects*/
+		if(curCmd->inputFrom != NULL){
+			int iFD;
+			iFD = open(curCmd->inputFrom, O_RDONLY);
+			if(iFD == -1){
+				printf("Cannot open %s for input, will use STDIN instead.\n", curCmd->inputFrom);
+			}
+			else{
+				dup2(iFD, STDIN_FILENO);
+			}
+		}
+		if(curCmd->outputTo != NULL){
+			int oFD;
+			oFD = open(curCmd->outputTo, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
+			if(oFD == -1){
+				printf("Cannot output to %s, will use STDOUT instead.\n", curCmd->outputTo);
+			}
+			else{
+				dup2(oFD, STDOUT_FILENO);
+			}
+		}
+			execvp(argsToPass[0], argsToPass);
+			/* execv should not return, something happened if the process gets here*/
+			execError(argsToPass[0]);
+			exit(1);
 	}
 }
 
@@ -1758,6 +1912,22 @@ command* addArg(char* arg, command* curCmd){
 	return curCmd;	
 }
 
+command* setIOFiles(char* inFile, command* curCmd, char* outFile){
+	if(strcmp(inFile, "") != 0){
+		curCmd->inputFrom = strdup(inFile);
+	}
+	if(strcmp(outFile, "") != 0){
+		curCmd->outputTo = strdup(outFile);
+	}
+	return curCmd;
+}
+
+command* setProg(char* progName, command* curCmd){
+	curCmd->command = strdup(progName);
+	curCmd->commandType = EXECPROGCMD;
+	return curCmd;
+}
+
 command* setPromptCmd(command* curCmd){
 	curCmd->commandType = SETPROMPTCMD;
 	return curCmd;
@@ -1786,7 +1956,8 @@ command* quitCmd(){
 
 int main(void){
 	prompt = strdup("iosh");
-	printf("%s%% ", prompt);	
+	getcwd(dir, sizeof(dir));
+	printf("%s%s%% ",prompt,dir);	
 	yyparse();
 	free(prompt);
 	return 0;
@@ -1795,8 +1966,41 @@ int main(void){
 void yyerror(char* s)
 {
         printf("%s\n",s);
-        printf("%s%% ",prompt);
+        printf("%s%s%% ",prompt,dir);
         yyparse();
         return;
+}
+
+void chdirError(char* directory){
+	if(errno == EACCES)
+		printf("You do not have permission to access directory: %s\n", directory);
+	else if (errno == ENOENT)                                                
+		printf("No such file or directory: %s\n", directory);
+	else if (errno == ENOTDIR)
+		printf("%s is not a directory\n", directory);
+	else if (errno == EIO)
+		printf("Input/Output error\n");
+	else if (errno == ENOMEM)
+		printf("Insufficient kernel memory was available\n");
+	else
+		printf("Change directory error\n");
+}
+
+void execError(char* commandName){
+    /*check for other errors here*/
+    if(errno == ENAMETOOLONG)
+    	printf("Path name for \"%s\" is too long\n", commandName);
+    else if (errno == E2BIG)
+    	printf("Too many arguments\n");
+    else if (errno == EACCES)
+    	printf("You do not have permission to run %s\n", commandName);
+    else if (errno == EIO)
+    	printf("Input/Output error\n");
+    else if (errno == ETXTBSY)
+    	printf("%s is open by one or more processes for writing\n", commandName);
+    else if (errno == ENOMEM)
+    	printf("Not enough kernel memory to run %s\n", commandName);
+    else
+    	printf("Cannot find or execute %s\n",commandName);
 }
 

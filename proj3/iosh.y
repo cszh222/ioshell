@@ -57,7 +57,7 @@ void execError(char* commandName);
 %type <string_val> outfile
 
 %%
-shell:	  shell builtin NEWLINE {run($2); printf("%s%s%% ",prompt,dir);}
+shell:	  shell builtin NEWLINE {run($2);/*the command needs to be freed*/ printf("%s%s%% ",prompt,dir);}
 		| shell COMMENT {printf("%s%s%% ",prompt,dir);}
 		| shell command NEWLINE {run($2); printf("%s%s%% ",prompt,dir);}
 		|
@@ -161,7 +161,7 @@ void runProg(command* curCmd){
 	for(i=1; i<= curCmd->argc; i++){
 		argsToPass[i] = strdup(argPtr->arg);
 		argPtr = argPtr->next;
-		printf("arg %d %s\n", i, argsToPass[i]);
+		/*printf("arg %d %s\n", i, argsToPass[i]);*/
 	}
 	/*Terminate argument array with NULL*/
 	argsToPass[curCmd->argc+1] = NULL;
@@ -171,8 +171,13 @@ void runProg(command* curCmd){
 	if((pid = fork()) != 0){
 		/*parent process*/
 		int status;
-		waitpid(pid, &status, 0);
+		if(waitpid(pid, &status, 0) == -1)
+		   printf("Error waiting on child to exit\n");
 		/*status can be checked here to see what happened to child*/
+		/*argsToPass needs to be freed*/
+		for(i=0; i<=curCmd->argc; i++)
+			free(argsToPass[i]);
+		free(argsToPass);
 	}
 	else{
 		/*child process*/
@@ -317,5 +322,18 @@ void chdirError(char* directory){
 
 void execError(char* commandName){
     /*check for other errors here*/
-    printf("Cannot find or execute the specified command %s\n",commandName);
+    if(errno == ENAMETOOLONG)
+    	printf("Path name for \"%s\" is too long\n", commandName);
+    else if (errno == E2BIG)
+    	printf("Too many arguments\n");
+    else if (errno == EACCES)
+    	printf("You do not have permission to run %s\n", commandName);
+    else if (errno == EIO)
+    	printf("Input/Output error\n");
+    else if (errno == ETXTBSY)
+    	printf("%s is open by one or more processes for writing\n", commandName);
+    else if (errno == ENOMEM)
+    	printf("Not enough kernel memory to run %s\n", commandName);
+    else
+    	printf("Cannot find or execute %s\n",commandName);
 }

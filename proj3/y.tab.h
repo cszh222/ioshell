@@ -65,7 +65,7 @@ typedef union YYSTYPE
 {
 
 /* Line 2068 of yacc.c  */
-#line 27 "iosh.y"
+#line 35 "iosh.y"
 
 	char* string_val;
 	command* command_val;
