@@ -1,11 +1,15 @@
 /************ global.h *********/
 #include <stdbool.h>
+
+#define MAXDIRLEN 100
 /*global flags*/
 bool debug_flag;
 
 /*prompt string*/
 char* prompt;
 
+/*directory string (buffered)*/
+char dir[MAXDIRLEN];
 /* command types */
 typedef enum eCommandType {QUITCMD, CHDIRCMD, EXECPROGCMD, SETPROMPTCMD, SETDEBUGCMD} eCommandType;
 /* struct for tokens */
