@@ -18,18 +18,17 @@ The shell has following builtin commands:
 - setprompt "string" - sets the prompt of shell to the value of string. Default prompt is iosh.
 - chdir directory - changes the current working directory to directory.
 - debug on/off - turns debugging mode on/off respectively. Debug mode will print out parsed tokens,
-			     their type, and usage before the command is exectued.
+  their type, and usage before the command is exectued.
 - quit - quit the shell.
 
 The shell can also run user programs in the following syntax:
 - [infile < ] cmd [arg]* [> outfile] - User programs can begin with an optional input file name 
-									  followed by '<', then the user program (full path may be 
-									  needed) with optional commandline arguments, then followed by
-									  optional '>' and outputfile.
+  followed by '<', then the user program (full path may be needed) with optional commandline arguments, then followed by optional '>' and outputfile.
 
 Features:
 - Contains all built in commands listed in project specification. 
-- Can executes user programs as long as they are valid programs and full path is inputed.
+- Can executes user programs as long as they are valid programs and full path is inputed. 
+  Some programs may work without full path, but it is recommended to use full path.
 - Can redirect input from a file as stated in project specification.
 - can redirect output to a file as stated in project specificatoin.
 - The prompt will also print the full path of the current working directory. This is put in to help
