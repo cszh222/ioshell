@@ -1,0 +1,11 @@
+Authors:
+Chang Zheng
+Julia Welch
+
+Included Files:
+globals.h - Global variables used by the program.
+iosh.l - Input lexical analyzer implemented using flex.
+iosh.y - Parser implemented using bison
+makefile - makefile for compiling the program
+README - Information about files and authors.
+DOCUMENTATION - Information about the program.

@@ -1,0 +1,50 @@
+iosh 
+This program implements a simple command line shell using flex and bison.
+Following structs are used in this program.
+struct command: 
+- char* command - the name of the user program (full path may be needed)
+- enum eCommandType commandType - the type of the command
+- char* inputFrom - the name of the file where input will be redirected form
+- char* outputTo - the name of the file where output will be redirected to
+- int argc - the number of arguments
+- arglist* argStart - the pointer to a struct named arglist. Arglist will be a singly linked
+  list of arguments to the command. argStart will be pointing to the beginning of the list.
+
+struct arglist:
+- char* arg - the string of the argument.
+- arglist* next - pointer to the next argument in the list.
+
+The shell has following builtin commands:
+- setprompt "string" - sets the prompt of shell to the value of string. Default prompt is iosh.
+- chdir directory - changes the current working directory to directory.
+- debug on/off - turns debugging mode on/off respectively. Debug mode will print out parsed tokens,
+			     their type, and usage before the command is exectued.
+- quit - quit the shell.
+
+The shell can also run user programs in the following syntax:
+- [infile < ] cmd [arg]* [> outfile] - User programs can begin with an optional input file name 
+									  followed by '<', then the user program (full path may be 
+									  needed) with optional commandline arguments, then followed by
+									  optional '>' and outputfile.
+
+Features:
+- Contains all built in commands listed in project specification. 
+- Can executes user programs as long as they are valid programs and full path is inputed.
+- Can redirect input from a file as stated in project specification.
+- can redirect output to a file as stated in project specificatoin.
+- The prompt will also print the full path of the current working directory. This is put in to help
+  the authors verify that chdir is working correctly. The prompt will have the following format:
+  promptmsg/full_path_to_directory, where promptmsg can be changed with setprompt (defualt is iosh)
+  and full_path_to_directory is the full path to the current directory.
+
+Limitations
+- Any error from using builtin commands will be repoted as syntax error. A description for all
+  built in commands will be printed.
+- Not all errno are checked. We did not check for all possible errnos resulted from chdir() and
+  exec(), only ones that we are most likely to encounter. A default error message is printed for 
+  all others. 
+- Lengthy prompt. Since the prompt will also print the full path of the working directory, the path 
+  may be extremely depending on the current directory.
+- Can only execute one command per line. The command may be builtin command or user program. 
+  The project specification does not require multiple commands in same line. 
+- Cannot handle piping between user programs. This was not part of the project specification.

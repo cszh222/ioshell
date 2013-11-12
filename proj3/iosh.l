@@ -16,10 +16,14 @@ comment "#".*"\n"
 "debug" {return DEBUG;}
 "chdir" {return CHDIR;}
 "quit" {return QUIT;}
+<<EOF>> {return ENDOFFILE;}
 "<" {return '<';}
 ">" {return '>';}
-{string} {yylval.string_val = strdup(yytext);	
-	return STRING;}
+{string} {char* newString = malloc((strlen(yytext)-1)*sizeof(char));
+		  memcpy(newString, &yytext[1], strlen(yytext)-2);
+		  newString[strlen(yytext)-2] = '\0';
+		  yylval.string_val = newString;		  	
+		  return STRING;}
 {word} {yylval.string_val = strdup(yytext);
 	return WORD;}
 "\n" {return NEWLINE;}

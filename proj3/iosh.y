@@ -25,6 +25,7 @@ command* setProg(char* progName, command* curCmd);
 
 void run(command* curCmd);
 void runProg(command* curCmd);
+void freeCommand(command* curCmd);
 
 int yylex(void);
 void yyerror(char* s);
@@ -46,21 +47,32 @@ void execError(char* commandName);
 %token DEBUG
 %token CHDIR
 %token QUIT
+%token ENDOFFILE
 %token '<'
 %token '>'
 
 %type <command_val> builtin 
+%type <command_val> setpromptarg
+%type <command_val> chdirarg
+%type <command_val> debugarg
 %type <command_val> args
 %type <command_val> command
 %type <command_val> prog
+%type <command_val> endoffile
 %type <string_val> infile
 %type <string_val> outfile
 
+
 %%
-shell:	  shell builtin NEWLINE {run($2);/*the command needs to be freed*/ printf("%s%s%% ",prompt,dir);}
-		| shell COMMENT {printf("%s%s%% ",prompt,dir);}
-		| shell command NEWLINE {run($2); printf("%s%s%% ",prompt,dir);}
+shell:	  shell builtin NEWLINE {run($2);freeCommand($2); 
+			printf("%s%s%% ",prompt,dir);fflush(stdout);}
+		| shell COMMENT {printf("%s%s%% ",prompt,dir); fflush(stdout);}
+		| shell command NEWLINE {run($2); freeCommand($2); 
+			printf("%s%s%% ",prompt,dir); fflush(stdout);}
+		| shell endoffile {run($2);}
 		|
+		;
+endoffile: ENDOFFILE {$$ = quitCmd();}
 		;
 
 command: infile '<' prog outfile {$$ = setIOFiles($1, $3, $4);}
@@ -75,15 +87,26 @@ outfile: '>' WORD {$$ = $2;}
 		;
 
 prog:    WORD args {$$= setProg($1, $2);}
-
-builtin: 	SETPROMPT args {$$ = setPromptCmd($2);}
-		| DEBUG args {$$ = setDebugCmd($2);}
-		| CHDIR args {$$ = chdirCmd($2);}
-		| QUIT {$$ = quitCmd();}
 		;
+
 args:		args WORD {$$ = addArg($2, $1);}
 		| args STRING {$$ = addArg($2, $1);}
 		| {$$ = newCommand();}
+		;
+
+builtin: 	SETPROMPT setpromptarg {$$ = setPromptCmd($2);}
+		| DEBUG debugarg {$$ = setDebugCmd($2);}
+		| CHDIR chdirarg {$$ = chdirCmd($2);}
+		| QUIT {$$ = quitCmd();}
+		;
+
+setpromptarg: STRING {$$ = addArg($1, newCommand());}
+		;
+
+debugarg: WORD {$$ = addArg($1, newCommand());}
+		;
+
+chdirarg: WORD {$$ = addArg($1, newCommand());}
 		;
 %%
 void run(command* curCmd){
@@ -135,7 +158,30 @@ void run(command* curCmd){
 			} 
 			break;
 		case EXECPROGCMD:
+			{
+			if(debug_flag){
+				if(curCmd->inputFrom != NULL){
+					printf("Token Type = word\t Token = %s \t Usage = input file\n", curCmd->inputFrom);
+					printf("Token Type = meta-char\t Token = <\t Usage = metachar\n");
+				}
+				
+				printf("Token Type = word\t Token = %s \t Usage = cmd\n", curCmd->command);
+				arglist* argPtr2 = curCmd->argStart;
+				int count = 1;
+				while(argPtr2!=NULL){
+					printf("Token type = word\t Token = %s\t Usage = arg %d\n", argPtr2->arg, count);
+					argPtr2 = argPtr2->next;
+					count++;
+				}
+
+				if(curCmd->outputTo != NULL){
+					printf("Token Type = meta-char\t Token = >\t Usage = metachar\n");
+					printf("Token Type = word\t Token = %s\t Usage = output file\n", curCmd->outputTo);
+				}
+
+			}
 			runProg(curCmd);
+			}
 			break;
 	}
 }
@@ -206,6 +252,22 @@ void runProg(command* curCmd){
 			/* execv should not return, something happened if the process gets here*/
 			execError(argsToPass[0]);
 			exit(1);
+	}
+}
+
+void freeCommand(command* curCmd){
+	/*deallocates memory used for command*/
+	free(curCmd->command);
+	if(curCmd->inputFrom != NULL)
+		free(curCmd->inputFrom);
+	if(curCmd->outputTo != NULL)
+		free(curCmd->outputTo);
+	arglist* argPtr;
+	while(curCmd->argStart != NULL){
+		argPtr = curCmd->argStart;
+		curCmd->argStart = curCmd->argStart->next;
+		free(argPtr->arg);
+		free(argPtr);
 	}
 }
 
@@ -300,40 +362,55 @@ int main(void){
 void yyerror(char* s)
 {
         printf("%s\n",s);
+        printf("If you are trying to use a built in command,\n please follow the proper syntax below.\n");
+        printf("The shell has following builtin commands:\n");
+
+        printf("- setprompt \"string\" - sets the prompt of shell to the value of string.\n");
+        printf("  Default prompt is iosh.\n");
+        
+        printf("- chdir directory - changes the current working directory to directory.\n");
+        
+        printf("- debug on/off - turns debugging mode on/off respectively.\n"); 
+        printf("  Debug mode will print out parsed tokens, their type,\n");
+        printf("  and usage before the command is exectued.\n");
+        
+        printf("- quit - quit the shell.\n");
+        
         printf("%s%s%% ",prompt,dir);
+        fflush(stdout);
         yyparse();
         return;
 }
 
 void chdirError(char* directory){
 	if(errno == EACCES)
-		printf("You do not have permission to access directory: %s\n", directory);
+		fprintf(stderr,"You do not have permission to access directory: %s\n", directory);
 	else if (errno == ENOENT)                                                
-		printf("No such file or directory: %s\n", directory);
+		fprintf(stderr,"No such file or directory: %s\n", directory);
 	else if (errno == ENOTDIR)
-		printf("%s is not a directory\n", directory);
+		fprintf(stderr,"%s is not a directory\n", directory);
 	else if (errno == EIO)
-		printf("Input/Output error\n");
+		fprintf(stderr,"Input/Output error\n");
 	else if (errno == ENOMEM)
-		printf("Insufficient kernel memory was available\n");
+		fprintf(stderr,"Insufficient kernel memory was available\n");
 	else
-		printf("Change directory error\n");
+		fprintf(stderr,"Change directory error\n");
 }
 
 void execError(char* commandName){
     /*check for other errors here*/
     if(errno == ENAMETOOLONG)
-    	printf("Path name for \"%s\" is too long\n", commandName);
+    	fprintf(stderr,"Path name for \"%s\" is too long\n", commandName);
     else if (errno == E2BIG)
-    	printf("Too many arguments\n");
+    	fprintf(stderr,"Too many arguments\n");
     else if (errno == EACCES)
-    	printf("You do not have permission to run %s\n", commandName);
+    	fprintf(stderr,"You do not have permission to run %s\n", commandName);
     else if (errno == EIO)
-    	printf("Input/Output error\n");
+    	fprintf(stderr,"Input/Output error\n");
     else if (errno == ETXTBSY)
-    	printf("%s is open by one or more processes for writing\n", commandName);
+    	fprintf(stderr,"%s is open by one or more processes for writing\n", commandName);
     else if (errno == ENOMEM)
-    	printf("Not enough kernel memory to run %s\n", commandName);
+    	fprintf(stderr,"Not enough kernel memory to run %s\n", commandName);
     else
-    	printf("Cannot find or execute %s\n",commandName);
+    	fprintf(stderr,"Cannot find or execute %s\n",commandName);
 }
