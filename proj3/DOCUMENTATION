@@ -47,3 +47,5 @@ Limitations
 - Can only execute one command per line. The command may be builtin command or user program. 
   The project specification does not require multiple commands in same line. 
 - Cannot handle piping between user programs. This was not part of the project specification.
+- Our program cannot handle ctrl+c. Handling ctrl+c was not part of the project specification
+  our shell will be terminated if ctrl+c is pressed.
