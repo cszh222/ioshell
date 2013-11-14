@@ -12,6 +12,7 @@ char* prompt;
 char dir[MAXDIRLEN];
 /* command types */
 typedef enum eCommandType {QUITCMD, CHDIRCMD, EXECPROGCMD, SETPROMPTCMD, SETDEBUGCMD} eCommandType;
+typedef enum eArgType {WORDARG, STRINGARG} eArgType;
 /* struct for tokens */
 typedef struct command command;
 typedef struct arglist arglist;
@@ -26,6 +27,7 @@ struct command{
 
 struct arglist{
 	char* arg;
+	enum eArgType argType;
 	arglist* next;
 };
 

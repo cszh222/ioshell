@@ -14,7 +14,7 @@
 
 extern int errno;
 
-command* addArg(char* arg, command* curCmd);
+command* addArg(char* arg, command* curCmd, eArgType argType);
 command* newCommand(void);
 command* setPromptCmd(command* curCmd);
 command* setDebugCmd(command* curCmd);
@@ -31,6 +31,7 @@ int yylex(void);
 void yyerror(char* s);
 void chdirError(char* directory);
 void execError(char* commandName);
+
 %}
 
 %union{
@@ -52,9 +53,6 @@ void execError(char* commandName);
 %token '>'
 
 %type <command_val> builtin 
-%type <command_val> setpromptarg
-%type <command_val> chdirarg
-%type <command_val> debugarg
 %type <command_val> args
 %type <command_val> command
 %type <command_val> prog
@@ -89,36 +87,38 @@ outfile: '>' WORD {$$ = $2;}
 prog:    WORD args {$$= setProg($1, $2);}
 		;
 
-args:		args WORD {$$ = addArg($2, $1);}
-		| args STRING {$$ = addArg($2, $1);}
+args:		args WORD {$$ = addArg($2, $1, WORDARG);}
+		| args STRING {$$ = addArg($2, $1, STRINGARG);}
 		| {$$ = newCommand();}
 		;
 
-builtin: 	SETPROMPT setpromptarg {$$ = setPromptCmd($2);}
-		| DEBUG debugarg {$$ = setDebugCmd($2);}
-		| CHDIR chdirarg {$$ = chdirCmd($2);}
+builtin: 	SETPROMPT args {$$ = setPromptCmd($2);}
+		| DEBUG args {$$ = setDebugCmd($2);}
+		| CHDIR args {$$ = chdirCmd($2);}
 		| QUIT {$$ = quitCmd();}
 		;
 
-setpromptarg: STRING {$$ = addArg($1, newCommand());}
-		;
-
-debugarg: WORD {$$ = addArg($1, newCommand());}
-		;
-
-chdirarg: WORD {$$ = addArg($1, newCommand());}
-		;
 %%
 void run(command* curCmd){
 	switch(curCmd -> commandType){
 		case SETPROMPTCMD:
-			if(debug_flag){
-				printf("Token Type = word\t  Token = setprompt\t Usage = setprompt\n");
-				printf("Token Type = string\t  Token = %s\t Usage = string\n", curCmd->argStart->arg);
-				printf("Token Type = end-of-line  Token = EOL\t\t Usage = EOL\n");
+			if(curCmd->argStart != NULL){
+				if(debug_flag){
+					printf("Token Type = word\t  Token = setprompt\t Usage = setprompt\n");
+					printf("Token Type = string\t  Token = %s\t Usage = string\n", curCmd->argStart->arg);
+					printf("Token Type = end-of-line  Token = EOL\t\t Usage = EOL\n");
+				}
+				if(curCmd->argStart->argType == STRINGARG){
+					free(prompt);
+					prompt = strdup(curCmd->argStart->arg);
+				}
+				else {
+					yyerror("syntax error");
+				}
 			}
-			free(prompt);
-			prompt = strdup(curCmd->argStart->arg);
+			else{
+				yyerror("syntax error");
+			}
 			break;
 		case QUITCMD:
 			if(debug_flag){
@@ -129,32 +129,52 @@ void run(command* curCmd){
 			exit(0);
 			break;
 		case CHDIRCMD: {
-			if(debug_flag){
-				printf("Token Type = word\t  Token = chdir\t Usage = chdir\n");
-				printf("Token Type = word\t  Token = %s\t Usage = word\n", curCmd->argStart->arg);
-				printf("Token Type = end-of-line  Token = EOL\t Usage = EOL\n");  
+			if(curCmd->argStart != NULL){
+				if(debug_flag){
+					printf("Token Type = word\t  Token = chdir\t Usage = chdir\n");
+					printf("Token Type = word\t  Token = %s\t Usage = word\n", curCmd->argStart->arg);
+					printf("Token Type = end-of-line  Token = EOL\t Usage = EOL\n");  
 
+				}
+				if(curCmd->argStart->argType == WORDARG){
+					int chdirErr = chdir(curCmd->argStart->arg);	
+					if(chdirErr == -1){
+						chdirError(curCmd->argStart->arg);			
+					}
+					else{
+						getcwd(dir, sizeof(dir));
+					}
+				}
+				else {
+					yyerror("syntax error");
+				}				
 			}
-			int chdirErr = chdir(curCmd->argStart->arg);	
-			if(chdirErr == -1){
-				chdirError(curCmd->argStart->arg);			
-			}
-			else{
-				getcwd(dir, sizeof(dir));
+			else {
+				yyerror("syntax error");
 			}
 			}
 			break;
 		case SETDEBUGCMD:
-			if(strcmp("on", curCmd->argStart->arg)==0){
-				debug_flag = true;
-				printf("debug turned on\n");
+			if(curCmd->argStart!= NULL){
+				if(curCmd->argStart->argType == WORDARG){
+					if(strcmp("on", curCmd->argStart->arg)==0){
+						debug_flag = true;
+						printf("debug turned on\n");
+					}
+					else if(strcmp("off", curCmd->argStart->arg)==0){
+						debug_flag = false;
+						printf("debug turned off\n");
+					}
+					else{
+						yyerror("syntax error");
+					}
+				}
+				else{
+					yyerror("syntax error");
+				}
 			}
-			else if(strcmp("off", curCmd->argStart->arg)==0){
-				debug_flag = false;
-				printf("debug turned off\n");
-			}
-			else{
-				printf("Debug mode must be set to either \"on\" or \"off\". %s is not valid.\n", curCmd->argStart->arg);
+			else {
+				yyerror("syntax error");
 			} 
 			break;
 		case EXECPROGCMD:
@@ -282,13 +302,14 @@ command* newCommand(){
 	return newCommand;
 }
 
-command* addArg(char* arg, command* curCmd){
+command* addArg(char* arg, command* curCmd, eArgType argType){
 	arglist* argPtr;
 	if(curCmd->argc == 0){
 		argPtr = malloc(sizeof(arglist));
 		char* newArg = strdup(arg);
 		argPtr->arg = newArg;
 		argPtr->next = NULL;
+		argPtr->argType = argType;
 		curCmd->argStart=argPtr;
 		curCmd->argc=1;				
 	}
@@ -301,6 +322,7 @@ command* addArg(char* arg, command* curCmd){
 		char* newArg = strdup(arg);
 		newArgList->arg = newArg;
 		newArgList->next = NULL;
+		newArgList->argType = argType;
 		argPtr->next = newArgList;
 		curCmd->argc++;
 	}	
@@ -375,7 +397,7 @@ void yyerror(char* s)
         printf("  and usage before the command is exectued.\n");
         
         printf("- quit - quit the shell.\n");
-        
+
         printf("%s%s%% ",prompt,dir);
         fflush(stdout);
         yyparse();
